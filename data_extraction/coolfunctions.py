@@ -274,15 +274,13 @@ def top_terms_user_data(field, server, port, dbname, dbcol, num_min_users, remov
         user = entry["user"]["screen_name"]
         # Get tokens by replacing non-alphanumeric characters by spaces and splitting
         for token in "".join([c if c.isalnum() else " " for c in data.lower()]).split():
-
-            if not remove_stop_words or token not in STOP_WORDS:
-                # Discard tokens with numbers in them
-                if token.isalpha():
-                    tokusers[token].add(user)
-                    if token in tokfreqs:
-                        tokfreqs[token] += 1
-                    else:
-                        tokfreqs[token] = 1
+            # Discard tokens with numbers in them and stop words
+            if token.isalpha() and (not remove_stop_words or token not in STOP_WORDS):
+                tokusers[token].add(user)
+                if token in tokfreqs:
+                    tokfreqs[token] += 1
+                else:
+                    tokfreqs[token] = 1
 
     return pd.Series({
         token: freq for token, freq in tokfreqs.iteritems() if len(tokusers[token]) >= num_min_users})
