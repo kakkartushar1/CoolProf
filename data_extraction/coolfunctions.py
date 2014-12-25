@@ -277,7 +277,7 @@ def top_terms_user_data(field, server, port, dbname, dbcol, num_min_users, remov
 
             if not remove_stop_words or token not in STOP_WORDS:
                 # Discard tokens with numbers in them
-                if all([c.isalpha() for c in token]):
+                if token.isalpha():
                     tokusers[token].add(user)
                     if token in tokfreqs:
                         tokfreqs[token] += 1
