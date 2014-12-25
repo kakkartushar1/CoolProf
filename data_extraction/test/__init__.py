@@ -1,5 +1,5 @@
 __author__ = 'rubcuevas'
-from data_extraction import coolfunctions as cf
+import coolfunctions as cf
 from pymongo import MongoClient
 import unittest
 import pandas as pd
@@ -42,7 +42,7 @@ class TestCoolfunctions(unittest.TestCase):
 
 
     def test_tokens_freq(self):
-        tokens_freq = cf.tokens_freq(HOST, PORT, DBNAME, COLNAME, NUM_MIN_USERS)
+        tokens_freq = cf.top_full_name_terms(HOST, PORT, DBNAME, COLNAME, NUM_MIN_USERS)
         solution = {
             "rubén": 4,
             "pepe": 2,
@@ -52,7 +52,7 @@ class TestCoolfunctions(unittest.TestCase):
         self.assertEquals(solution, tokens_freq.to_dict())
 
     def test_write_tokens_freq(self):
-        cf.write_freqs_to_file(cf.tokens_freq(
+        cf.full_name_terms_to_csv(cf.top_full_name_terms(
            HOST, PORT, DBNAME, COLNAME, NUM_MIN_USERS
         ), TOKENS_FREQ_FILE)
         freqs = pd.read_csv(TOKENS_FREQ_FILE, sep=";")

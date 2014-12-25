@@ -5,14 +5,14 @@ from collections import defaultdict
 from pymongo import MongoClient
 
 
-def write_freqs_to_file(freqs, file_path):
+def full_name_terms_to_csv(freqs, file_path):
     with open(file_path, 'w') as f:
         f.write("token;frequency\n")
         for token, freq in freqs.iteritems():
             f.write(token + ";" + str(freq) + "\n")
 
 
-def tokens_freq(server, port, dbname, dbcol, num_min_users):
+def top_full_name_terms(server, port, dbname, dbcol, num_min_users):
     cooltweets = MongoClient(server, port)[dbname][dbcol]
     tokfreqs = pd.Series()
     tokusers = defaultdict(set)
