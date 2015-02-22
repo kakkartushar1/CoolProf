@@ -1,0 +1,10 @@
+coolcrawler/.idea
+coolcralwer/target
+coolcrawler/out
+coolcrawler/logs
+coolcrawler.iml
+coolcrawler/coolcrawler.properties
+coolcrawler/twitter4j.properties
+credentials_twitter.txt
+crawl_log.out
+data_extraction/** !data_extraction/**/*.py

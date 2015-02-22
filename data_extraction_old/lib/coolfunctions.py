@@ -4,6 +4,7 @@ import pandas as pd
 from collections import defaultdict
 from pymongo import MongoClient
 
+
 STOP_WORDS = """de
 la
 que
@@ -258,11 +259,61 @@ teniendo
 tenido
 """.split("\n")
 
+
+def top_terms_to_collection(field, server, port, dbname, dbcol, terms_col_name, filtered_col_name, num_min_users, remove_stop_words):
+    cooltweets = MongoClient(server, port)[dbname][dbcol]
+    coolterms = MongoClient(server, port)[dbname][terms_col_name]
+    rows = cooltweets.find({}, {"_id": 0, "name": 1, "user.name": 1, "user.screen_name": 1, "user.description": 1})
+    for entry in rows:
+        data = entry["user"][field]
+        user = entry["user"]["screen_name"]
+        # Get tokens by replacing non-alphanumeric characters by spaces and splitting
+        for token in "".join([c if c.isalnum() else " " for c in data.lower()]).split():
+            # Discard tokens with numbers in them and stop words
+            if token.isalpha() and (not remove_stop_words or token not in STOP_WORDS):
+                term = {"term": token, "user": user}
+                coolterms.insert(term)
+
+    coolterms.aggregate([
+                    {
+                    "$group": {
+                        "_id": {
+                            "term": "$term"
+                        },
+                        "users": {"$addToSet": "$user"},
+                        "count": {"$sum": 1}
+                    }},
+                    {
+                    "$project":
+                        {
+                        "term": "$_id.term",
+                        "count": "$count",
+                        "count_users": {"$size": "$users"}
+                    }},
+                    {
+                    "$match":
+                        {
+                        "count_users": {"$gte": num_min_users}
+                    }},
+                    {
+                        "$project": {
+                            "term": "$term",
+                            "count": "$count"
+                    }}, 
+                    {
+                        "$out": filtered_col_name
+                    }
+                    ],
+                    { "allowDiskUse": True})
+
+
+
 def top_terms_to_csv(freqs, file_path):
     with open(file_path, 'w') as f:
         f.write("token;frequency\n")
         for token, freq in freqs.iteritems():
             f.write(token + ";" + str(freq) + "\n")
+
 
 def top_terms_user_data(field, server, port, dbname, dbcol, num_min_users, remove_stop_words):
     cooltweets = MongoClient(server, port)[dbname][dbcol]
@@ -276,7 +327,8 @@ def top_terms_user_data(field, server, port, dbname, dbcol, num_min_users, remov
         for token in "".join([c if c.isalnum() else " " for c in data.lower()]).split():
             # Discard tokens with numbers in them and stop words
             if token.isalpha() and (not remove_stop_words or token not in STOP_WORDS):
-                tokusers[token].add(user)
+                #tokusers[token].add(user)
+
                 if token in tokfreqs:
                     tokfreqs[token] += 1
                 else:
@@ -287,11 +339,14 @@ def top_terms_user_data(field, server, port, dbname, dbcol, num_min_users, remov
 
 
 def top_full_name_terms(server, port, dbname, dbcol, num_min_users):
-    return top_terms_user_data("name", server, port, dbname, dbcol, num_min_users, False)
+    #return top_terms_user_data("name", server, port, dbname, dbcol, num_min_users, False)
+    top_terms_to_collection("name", server, port, dbname, dbcol, "fullname_terms", "top_fullname_terms", num_min_users, False)
 
 
 def top_bio_terms(server, port, dbname, dbcol, num_min_users):
-    return top_terms_user_data("description", server, port, dbname, dbcol, num_min_users, True)
+    top_terms_to_collection("description", server, port, dbname, dbcol, "bio_terms", "top_bio_terms", num_min_users, True)
+
+
 
 
 
