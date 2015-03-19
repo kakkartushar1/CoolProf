@@ -4,8 +4,8 @@ import pandas as pd
 import numpy as np
 from pymongo import MongoClient
 from unidecode import unidecode
-
 TOTAL_POPULATION_SPAIN = 46464053
+
 
 
 def read_data_by_nationality(path):
@@ -59,9 +59,10 @@ def join_slugified_terms(top_terms_col_name, census_col_name, slug_col_name):
     #terms_census_list = [c["term"] for c in col_census.find()]
     for term in terms.find().batch_size(10):
         slugified_term = "".join([unidecode(c) if c != "ñ" else c for c in term["_id"]["term"]])
-        surname_census = col_census.find_one({"term": slugified_term})
-        if surname_census is not None:
+        term_census = col_census.find_one({"term": slugified_term})
+        if term_census is not None:
             #if not "term" in term_toinsert.keys():
+            #Extract the term from the slugified terms collection
             inserted_slug = slugified_terms.find_one({"term": slugified_term})
 
             if inserted_slug is not None:
@@ -70,7 +71,7 @@ def join_slugified_terms(top_terms_col_name, census_col_name, slug_col_name):
                     {"$set": {"count_users": inserted_slug["count_users"] + term["count_users"]}})
             else:
                 slugified_terms.insert({"term": slugified_term, "count_users": term["count_users"],
-                                        "census_probability": surname_census["census_probability"]})
+                                        "census_probability": term_census["census_probability"]})
 
 
 def insert_surnames_census_freqs(freqs_path, census_col_name):
@@ -101,6 +102,26 @@ def insert_names_census_freqs(freqs_path, census_col_name):
         freq = row["Frecuencia"]
         census_probability = freq / TOTAL_POPULATION_SPAIN
         names.insert({"term": name.lower(), "census_probability": census_probability})
+
+
+def insert_compound_names_as_simple(freqs_path, db_name, census_col_name, population=TOTAL_POPULATION_SPAIN):
+    names = MongoClient("localhost", 27017)[db_name][census_col_name]
+    x = pd.ExcelFile(freqs_path)
+    y = x.parse(x.sheet_names[0], na_values=[".."])
+    for row in y.iterrows():
+        row = row[1]
+        simple_names = row["Nombre"].split(" ")
+        freq = row["Frecuencia"]
+        census_probability = freq / population
+        for simple_name in simple_names:
+            simple_name = simple_name.lower()
+            name_already_inserted = names.find_one({"term": simple_name})
+            if name_already_inserted is not None:
+                current_freq = float(name_already_inserted["census_probability"]) * population
+                names.update({"term": simple_name},
+                             {"$set": {"census_probability": (current_freq + freq) / population}})
+            else:
+                names.insert({"term": simple_name, "census_probability": freq / population})
 
 
 
