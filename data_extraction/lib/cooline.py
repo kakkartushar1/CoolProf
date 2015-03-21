@@ -106,8 +106,9 @@ def insert_names_census_freqs(freqs_path, census_col_name):
 
 def insert_compound_names_as_simple(freqs_path, db_name, census_col_name, population=TOTAL_POPULATION_SPAIN):
     names = MongoClient("localhost", 27017)[db_name][census_col_name]
-    x = pd.ExcelFile(freqs_path)
-    y = x.parse(x.sheet_names[0], na_values=[".."])
+    #x = pd.ExcelFile(freqs_path)
+    #y = x.parse(x.sheet_names[0], na_values=[".."])
+    y = pd.read_excel(freqs_path, na_values=[".."], keep_default_na=False, parse_cols=4)
     for row in y.iterrows():
         row = row[1]
         simple_names = row["Nombre"].split(" ")
