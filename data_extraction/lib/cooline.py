@@ -48,30 +48,41 @@ def get_total_freq_surnames():
     return count
 
 
-def join_slugified_terms(top_terms_col_name, census_col_name, slug_col_name):
-    terms = MongoClient("localhost", 27017)["cooldb"][top_terms_col_name]
-    col_census = MongoClient("localhost", 27017)["cooldb"][census_col_name]
-    slugified_terms = MongoClient("localhost", 27017)["cooldb"][slug_col_name]
+def slugify_and_join_terms(dbname, top_terms_col_name, result_col_name):
+    terms = MongoClient("localhost", 27017)[dbname][top_terms_col_name]
+    #col_census = MongoClient("localhost", 27017)[dbname][census_col_name]
+    slugified_terms = MongoClient("localhost", 27017)[dbname][result_col_name]
     # for term_census in col_census.find():
     #     term_toinsert = {}
     #     for term in terms.find():
     #term_toinsert = {}
     #terms_census_list = [c["term"] for c in col_census.find()]
     for term in terms.find().batch_size(10):
-        slugified_term = "".join([unidecode(c) if c != "ñ" else c for c in term["_id"]["term"]])
-        term_census = col_census.find_one({"term": slugified_term})
-        if term_census is not None:
-            #if not "term" in term_toinsert.keys():
-            #Extract the term from the slugified terms collection
-            inserted_slug = slugified_terms.find_one({"term": slugified_term})
+        slugified_term = "".join([unidecode(c) if c != "ñ" else c for c in term["_id"]["term"]]).lower()
+        # term_census = col_census.find_one({"term": slugified_term})
+        # if term_census is not None:
+        #     #if not "term" in term_toinsert.keys():
+        #     #Extract the term from the slugified terms collection
+        inserted_slug = slugified_terms.find_one({"term": slugified_term})
 
-            if inserted_slug is not None:
-                #term_toinsert["term"] = slugified_term
-                slugified_terms.update({"term": slugified_term},
-                    {"$set": {"count_users": inserted_slug["count_users"] + term["count_users"]}})
-            else:
-                slugified_terms.insert({"term": slugified_term, "count_users": term["count_users"],
-                                        "census_probability": term_census["census_probability"]})
+        if inserted_slug is not None:
+            #term_toinsert["term"] = slugified_term
+            slugified_terms.update({"term": slugified_term},
+                {"$set": {"count_users": inserted_slug["count_users"] + term["count_users"]}})
+        else:
+            slugified_terms.insert({"term": slugified_term, "count_users": term["count_users"]})
+
+def extract_terms(dbname, twitter_col_name, census_col_name, result_col_name):
+    twitter_col = MongoClient("localhost", 27017)[dbname][twitter_col_name]
+    census_col = MongoClient("localhost", 27017)[dbname][census_col_name]
+    result_col = MongoClient("localhost", 27017)[dbname][result_col_name]
+    for row in census_col.find().batch_size(10):
+        twitter_term = twitter_col.find_one({"term": row["term"]})
+        if twitter_term is not None:
+            result_col.insert({"term": row["term"], "census_probability": float(row["census_probability"]),
+                               "count_users": int(twitter_term["count_users"])})
+
+
 
 
 def insert_surnames_census_freqs(freqs_path, dbname, census_col_name, population=TOTAL_POPULATION_SPAIN):
@@ -96,7 +107,6 @@ def insert_surnames_census_freqs(freqs_path, dbname, census_col_name, population
                 surnames.insert({"term": surname, "census_probability": census_probability})
 
 
-
 def insert_names_census_freqs(freqs_path, db_name, census_col_name, population=TOTAL_POPULATION_SPAIN):
     names = MongoClient("localhost", 27017)[db_name][census_col_name]
     y = pd.read_excel(freqs_path, na_values=[".."], keep_default_na=False, parse_cols=4)
@@ -116,24 +126,37 @@ def insert_names_census_freqs(freqs_path, db_name, census_col_name, population=T
                 names.insert({"term": simple_name, "census_probability": freq / population})
 
 
+def count_different_users(dbname, colname):
+    col = MongoClient("localhost", 27017)[dbname][colname]
+    count = 0
+    for row in col.find().batch_size(10):
+        count += row["count_users"]
+    return count
 
 
-
-def insert_terms_probabilities(twitter_col_name, census_col_name):
-    twitter_terms = MongoClient("localhost", 27017)["cooldb"][twitter_col_name] #slugified
-    census_terms = MongoClient("localhost", 27017)["cooldb"][census_col_name]
-    total_twitter_terms = twitter_terms.count()
-    for twitter_term_cursor in twitter_terms.find():
-        twitter_term = twitter_term_cursor["term"]
-        census_term = census_terms.find_one({"term": twitter_term})
-        term_count = int(twitter_term_cursor["count_users"])
-        census_probability = float(census_term["census_probability"])
-        twitter_probability = term_count / total_twitter_terms
-        twitter_terms.update({"term": twitter_term},
-                             {"$set": {"twitter_probability": twitter_probability}})
-        twitter_terms.update({"term": twitter_term},
-                             {"$set": {"confidence": census_probability / twitter_probability}})
-
+def insert_terms_probabilities(dbname, twitter_col_name, census_col_name, result_col_name):
+    twitter_terms = MongoClient("localhost", 27017)[dbname][twitter_col_name] #slugified
+    census_terms = MongoClient("localhost", 27017)[dbname][census_col_name]
+    result_col = MongoClient("localhost", 27017)[dbname][result_col_name]
+    total_twitter_terms = count_different_users(dbname, twitter_col_name)
+    # for twitter_term_cursor in twitter_terms.find():
+    #     twitter_term = twitter_term_cursor["term"]
+    #     census_term = census_terms.find_one({"term": twitter_term})
+    #     term_count = int(twitter_term_cursor["count_users"])
+    #     census_probability = float(census_term["census_probability"])
+    #     twitter_probability = term_count / total_twitter_terms
+    #     twitter_terms.update({"term": twitter_term},
+    #                          {"$set": {"twitter_probability": twitter_probability}})
+    #     twitter_terms.update({"term": twitter_term},
+    #                          {"$set": {"confidence": census_probability / twitter_probability}})
+    for census_obj in census_terms.find().batch_size(10):
+        census_term = census_obj["term"]
+        twitter_term_obj = twitter_terms.find_one({"term": census_term})
+        twitter_term_count = int(twitter_term_obj["count_users"])
+        census_prob = float(census_obj["census_probability"])
+        twitter_prob = twitter_term_count / total_twitter_terms
+        result_col.insert({"term": census_term, "census_probability": census_prob, "twitter_probability": twitter_prob,
+                           "confidence": census_prob / twitter_prob})
 
 
 
