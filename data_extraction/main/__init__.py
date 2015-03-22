@@ -14,5 +14,6 @@ from lib import cooline as cin
 # print("bio terms extraction finished")
 # cf.aggregate_terms("localhost", 27017, "cooldb", "bio_terms", "top_bio_terms", 5)
 # print("bio terms aggregation finished")
-cin.insert_compound_names_as_simple(freqs_path="cleaned/nombres_simples_frecuencia_hombres",
-                                    db_name="cooldb", census_col_name="man_names")
+cin.insert_surnames_census_freqs("resources/cleaned_census_datasets/apellidos_frecuencia.xls", "cooldb", "surnames_census")
+# cin.insert_compound_names_as_simple(freqs_path="cleaned/nombres_simples_frecuencia_hombres",
+#                                     db_name="cooldb", census_col_name="man_names")

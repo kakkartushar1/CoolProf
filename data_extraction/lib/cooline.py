@@ -74,40 +74,31 @@ def join_slugified_terms(top_terms_col_name, census_col_name, slug_col_name):
                                         "census_probability": term_census["census_probability"]})
 
 
-def insert_surnames_census_freqs(freqs_path, census_col_name):
-    surnames = MongoClient("localhost", 27017)["cooldb"][census_col_name]
+def insert_surnames_census_freqs(freqs_path, dbname, census_col_name, population=TOTAL_POPULATION_SPAIN):
+    surnames = MongoClient("localhost", 27017)[dbname][census_col_name]
     #x = pd.ExcelFile("apellidos_frecuencia.xls")
-    x = pd.ExcelFile(freqs_path)
-    y = x.parse(x.sheet_names[0], na_values=[".."])
-    z = x.parse(x.sheet_names[1], na_values=[".."])
-    surnames_excel = y.append(z, ignore_index=True)
+    surnames_excel = pd.read_excel(freqs_path, na_values=[".."], keep_default_na=False, parse_cols=3)
     for row in surnames_excel.iterrows():
         row = row[1]
-        surname = row["Apellido"]
+        simple_surnames = row["Apellido"].lower().split(" ")
         primer_apellido_freq = int(row["Primer_Apellido"]) if not pd.isnull(row["Primer_Apellido"]) else 0
         segundo_apellido_freq = int(row["Segundo_Apellido"]) if not pd.isnull(row["Segundo_Apellido"]) else 0
         ambos_apellidos_freq = int(row["Ambos_Apellidos"]) if not pd.isnull(row["Ambos_Apellidos"]) else 0
-        census_probability = (primer_apellido_freq + segundo_apellido_freq
-                              - ambos_apellidos_freq)/TOTAL_POPULATION_SPAIN
-        surnames.insert({"term": surname.lower(), "census_probability": census_probability})
+        freq = primer_apellido_freq + segundo_apellido_freq - ambos_apellidos_freq
+        census_probability = (freq/population)
+        for surname in simple_surnames:
+            surname_already_inserted = surnames.find_one({"term": surname})
+
+            if surname_already_inserted is not None:
+                current_freq = float(surname_already_inserted["census_probability"]) * population
+                surnames.update({"term": surname}, {"$set": {"census_probability": (current_freq + freq) / population}})
+            else:
+                surnames.insert({"term": surname, "census_probability": census_probability})
 
 
-def insert_names_census_freqs(freqs_path, census_col_name):
-    names = MongoClient("localhost", 27017)["cooldb"][census_col_name]
-    x = pd.ExcelFile(freqs_path)
-    y = x.parse(x.sheet_names[0], na_values=[".."])
-    for row in y.iterrows():
-        row = row[1]
-        name = row["Nombre"]
-        freq = row["Frecuencia"]
-        census_probability = freq / TOTAL_POPULATION_SPAIN
-        names.insert({"term": name.lower(), "census_probability": census_probability})
 
-
-def insert_compound_names_as_simple(freqs_path, db_name, census_col_name, population=TOTAL_POPULATION_SPAIN):
+def insert_names_census_freqs(freqs_path, db_name, census_col_name, population=TOTAL_POPULATION_SPAIN):
     names = MongoClient("localhost", 27017)[db_name][census_col_name]
-    #x = pd.ExcelFile(freqs_path)
-    #y = x.parse(x.sheet_names[0], na_values=[".."])
     y = pd.read_excel(freqs_path, na_values=[".."], keep_default_na=False, parse_cols=4)
     for row in y.iterrows():
         row = row[1]
